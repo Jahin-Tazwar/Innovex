@@ -1,32 +1,15 @@
+
 """
-24-hour schedule optimizer -- PERSON C OWNS THIS FILE.
+24-hour schedule optimizer & test runner.
 
-The LP below is C's draft (it was sitting in README.md), ported onto the frozen
-contract by A. Changes made during the port:
-
-  * directives now arrive pre-validated as `Directive` objects, so the big
-    if/elif block that parsed raw dicts is gone -- app/energy.py does it, and
-    app/replay.py reads the same helpers so the checker cannot drift from the
-    model.
-  * hours are indexed by position in a 0..23-sorted list rather than assuming
-    the request arrived in order.
-  * an uncapped grid variable gets upBound=None instead of float("inf") (CBC
-    chokes on an infinite bound written into the LP file).
-  * simultaneous charge+discharge in the same hour is netted into one action by
-    build_plan(); picking `charge` while discharge was also non-zero would have
-    made battery_kwh disagree with battery_energy_after_kwh.
-  * infeasible/failed solve returns the baseline instead of raising, so the case
-    is still valid rather than a 500.
-  * totals are no longer computed here -- main.py derives them from the rounded
-    plan so reported numbers always reproduce from hourly_plan.
-
-Interface:
-    solve(hours, battery, directives) -> list[HourPlanEntry]
+This module combines the PuLP-based LP schedule optimizer with an inline
+test harness to evaluate edge cases, infeasibility scenarios, and validator replays.
 """
 
 from __future__ import annotations
 
 import logging
+import sys
 from typing import List, Sequence
 
 import pulp
@@ -39,12 +22,16 @@ from .energy import (
     no_discharge_hours,
     reserve_floors,
 )
+from .replay import verify_schedule
 from .schemas import Battery, BatteryAction, Directive, HourEntry, HourPlanEntry
 
 logger = logging.getLogger(__name__)
 
 EPSILON = 1e-9
 
+# =====================================================================
+# OPTIMIZER CORE LOGIC
+# =====================================================================
 
 def build_plan(
     hours: Sequence[HourEntry],
@@ -182,8 +169,10 @@ def solve(
         )
 
     # End-of-day neutrality: the starting charge is a buffer, not free energy.
-    problem += (energy_after[horizon - 1] == float(battery.initial_energy_kwh),
-                "neutrality")
+    problem += (
+        energy_after[horizon - 1] == float(battery.initial_energy_kwh),
+        "neutrality",
+    )
 
     try:
         solver = pulp.PULP_CBC_CMD(
@@ -212,3 +201,129 @@ def solve(
         [value(v) for v in charge],
         [value(v) for v in discharge],
     )
+
+
+# Alias for backwards compatibility with legacy call sites
+solve_energy_schedule = solve
+
+
+# =====================================================================
+# TEST HARNESS & EDGE CASE SUITE
+# =====================================================================
+
+def parse_scenario(scenario_dict: dict) -> tuple[List[HourEntry], Battery]:
+    """Helper to convert raw dictionary fixtures into Pydantic schema instances."""
+    hours = [HourEntry(**h) for h in scenario_dict["hours"]]
+    battery = Battery(**scenario_dict["battery"])
+    return hours, battery
+
+
+def parse_directives(directives_list: list) -> List[Directive]:
+    """Helper to convert raw dictionary directives into Pydantic schema instances."""
+    return [Directive(**d) for d in directives_list]
+
+
+def get_base_scenario() -> dict:
+    """Base scenario fixture for testing."""
+    return {
+        "scenario_id": "EDGE-TEST",
+        "hours": [
+            {"hour": h, "demand_kwh": 100.0, "solar_kwh": 50.0, "tariff_bdt_per_kwh": 10.0}
+            for h in range(24)
+        ],
+        "battery": {
+            "capacity_kwh": 200.0,
+            "initial_energy_kwh": 100.0,
+            "minimum_energy_kwh": 20.0,
+            "max_charge_kwh_per_hour": 50.0,
+            "max_discharge_kwh_per_hour": 50.0,
+        },
+    }
+
+
+def run_test(name: str, scenario_raw: dict, directives_raw: list) -> None:
+    """Executes a scenario through the solver and runs replay validation."""
+    print(f"\n--- Testing: {name} ---")
+    try:
+        hours, battery = parse_scenario(scenario_raw)
+        directives = parse_directives(directives_raw)
+
+        # 1. Run Solver
+        result = solve(hours, battery, directives)
+        print("Solver Status: EXECUTED (No 500 Raised)")
+
+        # 2. Replay Verification
+        is_valid, logs = verify_schedule(scenario_raw, directives_raw, result)
+        print(f"Replay Valid: {is_valid}")
+        if not is_valid:
+            print(f"Replay Violation Logs: {logs}")
+    except Exception as e:
+        print(f"FAILED (Raised 500 / Exception): {e}")
+
+
+if __name__ == "__main__":
+    # --- Edge Case Test Scenarios ---
+
+    # 1. Tighter max_grid_window causing LP Infeasibility
+    scenario1 = get_base_scenario()
+    directives1 = [
+        {
+            "applies": True,
+            "directive_type": "max_grid_window",
+            "structured_adjustment": {"hours": [12], "max_grid_kwh": 0.0},
+        }
+    ]
+
+    # 2. minimum_battery_reserve at capacity or hour 23 fighting end-of-day neutrality
+    scenario2 = get_base_scenario()
+    directives2 = [
+        {
+            "applies": True,
+            "directive_type": "minimum_battery_reserve",
+            "structured_adjustment": {"hours": [23], "minimum_energy_kwh": 200.0},
+        }
+    ]
+
+    # 3. Solar Reduction with factor 0 (Complete Solar Outage)
+    scenario3 = get_base_scenario()
+    directives3 = [
+        {
+            "applies": True,
+            "directive_type": "solar_reduction",
+            "structured_adjustment": {"hours": list(range(24)), "factor": 0.0},
+        }
+    ]
+
+    # 4. All-zero solar, flat tariff, demand exceeding grid cap
+    scenario4 = get_base_scenario()
+    for h_entry in scenario4["hours"]:
+        h_entry["solar_kwh"] = 0.0
+    directives4 = [
+        {
+            "applies": True,
+            "directive_type": "max_grid_window",
+            "structured_adjustment": {"hours": [10], "max_grid_kwh": 10.0},
+        }
+    ]
+
+    # 5. Overlapping / Duplicate Directives
+    scenario5 = get_base_scenario()
+    directives5 = [
+        {
+            "applies": True,
+            "directive_type": "minimum_battery_reserve",
+            "structured_adjustment": {"hours": [10, 11, 12], "minimum_energy_kwh": 80.0},
+        },
+        {
+            "applies": True,
+            "directive_type": "minimum_battery_reserve",
+            "structured_adjustment": {"hours": [12, 13], "minimum_energy_kwh": 120.0},
+        },
+    ]
+
+    # Run Test Suite
+    run_test("1. Infeasible Grid Cap", scenario1, directives1)
+    run_test("2. Hour 23 Neutrality vs Reserve Conflict", scenario2, directives2)
+    run_test("3. Total Solar Outage (Factor 0)", scenario3, directives3)
+    run_test("4. Demand > Grid Cap (Unresolvable)", scenario4, directives4)
+    run_test("5. Overlapping Directives", scenario5, directives5)
