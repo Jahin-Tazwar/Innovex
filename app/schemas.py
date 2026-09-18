@@ -1,9 +1,8 @@
 """
-FROZEN CONTRACT -- owned by Person A. Do not change field names or types.
+Request/response contract, transcribed from the Problem Statement (07, 10).
 
-Everything in this file is a direct transcription of the Problem Statement
-(sections 07, 10). If you think something here is wrong, say so in the group
-chat rather than editing it locally -- B and C both build against these types.
+Field names and types are fixed by the spec and are relied on across the whole
+service, so they should not be changed casually.
 
 Directive shapes (Problem Statement 4.1):
     solar_reduction          {"hours": [...], "factor": float}
@@ -118,10 +117,8 @@ class OptimizeResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------
-# Internal type the optimizer consumes.
-#
-# C: you never see raw LLM output or the note text. You get a list of these,
-# already validated. `hours` is always a sorted list of unique ints 0..23.
+# Internal type the optimizer consumes: validated directives only, never raw
+# model output or note text. `hours` is always sorted unique ints 0..23.
 # --------------------------------------------------------------------------
 
 

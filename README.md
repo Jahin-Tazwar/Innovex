@@ -156,11 +156,11 @@ Every value is read from the environment. **No secrets are committed** — see
 | Variable | Purpose | Default |
 |---|---|---|
 | `LLM_PROVIDER` | `groq` \| `openai` \| `stub` | `stub` |
-| `LLM_MODEL` | Model id; blank uses the provider default | `llama-3.3-70b-versatile` |
+| `LLM_MODEL` | Model id; blank uses the provider default | `openai/gpt-oss-120b` |
 | `GROQ_API_KEY` | Required when `LLM_PROVIDER=groq` | — |
 | `OPENAI_API_KEY` | Required when `LLM_PROVIDER=openai` | — |
 | `LLM_TIMEOUT_SECONDS` | Model call budget; judge kills us at 30s | `12` |
-| `LLM_MAX_RETRIES` | Retries on a failed model call | `1` |
+| `LLM_MAX_RETRIES` | Retries on a failed model call | `3` |
 | `SOLVER_TIMEOUT_SECONDS` | CBC time limit | `10` |
 | `PORT` | Listen port (Render/Railway/Fly inject this) | `8000` |
 | `DEBUG` | Verbose logging | `false` |

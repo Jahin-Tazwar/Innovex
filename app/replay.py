@@ -6,9 +6,6 @@ The judge re-simulates the returned hourly_plan hour by hour against the
 GROUND-TRUTH directives rather than our reported interpretation. This module
 does the same thing, so anything it flags is a case we would have lost.
 
-Person A wrote this so the smoke-test harness has something to check against.
-Person C: run it on your solver output while you work.
-
     errors = replay(plan, request.hours_sorted(), request.battery, directives)
     errors == [] means the plan is valid.
 """

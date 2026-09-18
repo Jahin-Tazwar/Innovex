@@ -9,7 +9,6 @@ test harness to evaluate edge cases, infeasibility scenarios, and validator repl
 from __future__ import annotations
 
 import logging
-import sys
 from typing import List, Sequence
 
 import pulp
@@ -203,7 +202,6 @@ def solve(
     )
 
 
-# Alias for backwards compatibility with legacy call sites
 solve_energy_schedule = solve
 
 

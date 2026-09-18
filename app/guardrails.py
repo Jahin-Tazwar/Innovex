@@ -1,6 +1,5 @@
 """
-Deterministic guardrails -- Person A wrote the structural pass, Person B owns
-tuning it.
+Deterministic guardrails.
 
 This is the layer that makes LLM output safe. Nothing the model returns is
 trusted: every entry is rebuilt from scratch into the exact shape the Problem

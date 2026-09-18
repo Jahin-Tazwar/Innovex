@@ -1,11 +1,10 @@
 name: Build and publish Docker image
 
-# The judge needs a pullable fallback image and nobody on the team has Docker
-# installed, so CI builds it. Every push to the default branch republishes
+# Publishes the fallback image. Every push to the default branch republishes
 # ghcr.io/<owner>/<repo>:latest plus an immutable :sha-<commit> tag.
 #
-# AFTER THE FIRST SUCCESSFUL RUN: open the repo's Packages page and set the
-# package visibility to Public, otherwise judges cannot pull it.
+# After the first successful run, set the package visibility to Public on the
+# repository's Packages page, otherwise the image cannot be pulled.
 
 on:
   push:

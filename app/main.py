@@ -1,10 +1,10 @@
 """
-GridWise LLM -- service entry point. Person A owns this file.
+GridWise LLM -- service entry point.
 
 Pipeline, in order:
 
-    request -> schema validation -> LLM interpretation (B)
-            -> deterministic guardrails -> optimizer (C)
+    request -> schema validation -> LLM interpretation
+            -> deterministic guardrails -> optimizer
             -> replay validation -> rounded response
 
 Every stage degrades instead of failing: if the model is unreachable we still
@@ -109,7 +109,7 @@ def _safe_errors(exc: RequestValidationError) -> List[Dict[str, Any]]:
 # --------------------------------------------------------------------------
 
 
-@app.get("/", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 async def root() -> Dict[str, Any]:
     return {
         "service": "GridWise LLM",
@@ -145,8 +145,8 @@ async def optimize_energy(payload: OptimizeRequest) -> OptimizeResponse:
             },
         )
 
-    # 1. LLM interpretation (Person B). A failure here must not fail the request:
-    #    we still owe the judge a valid schedule.
+    # 1. LLM interpretation. A failure here must not fail the request: we still
+    #    owe the caller a valid schedule.
     raw_entries: Any = []
     try:
         raw_entries = await interpreter.interpret_notes(
