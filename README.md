@@ -155,19 +155,26 @@ Every value is read from the environment. **No secrets are committed** — see
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `LLM_PROVIDER` | `anthropic` \| `openai` \| `gemini` \| `stub` | `stub` |
-| `LLM_MODEL` | Provider-specific model id | provider default |
-| `ANTHROPIC_API_KEY` | Required when `LLM_PROVIDER=anthropic` | — |
+| `LLM_PROVIDER` | `groq` \| `openai` \| `stub` | `stub` |
+| `LLM_MODEL` | Model id; blank uses the provider default | `llama-3.3-70b-versatile` |
+| `GROQ_API_KEY` | Required when `LLM_PROVIDER=groq` | — |
 | `OPENAI_API_KEY` | Required when `LLM_PROVIDER=openai` | — |
-| `GOOGLE_API_KEY` | Required when `LLM_PROVIDER=gemini` | — |
 | `LLM_TIMEOUT_SECONDS` | Model call budget; judge kills us at 30s | `12` |
 | `LLM_MAX_RETRIES` | Retries on a failed model call | `1` |
 | `SOLVER_TIMEOUT_SECONDS` | CBC time limit | `10` |
 | `PORT` | Listen port (Render/Railway/Fly inject this) | `8000` |
 | `DEBUG` | Verbose logging | `false` |
 
-**Model in use for submission:**
-<!-- TODO(B): state the exact provider + model id here, e.g. "Anthropic claude-sonnet-5" -->
+**Model in use for submission:** Groq — `openai/gpt-oss-120b`, called through
+Groq's OpenAI-compatible `/chat/completions` endpoint at `temperature: 0`,
+`response_format: json_object`, `reasoning_effort: low`. One call interprets all
+1–3 notes together. The `openai` provider shares the same code path, so an
+OpenAI key is a drop-in backup.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `LLM_REASONING_EFFORT` | `low` \| `medium` \| `high`, gpt-oss only | `low` |
+| `LLM_BUDGET_SECONDS` | Total interpreter wall-clock across retries | `22` |
 
 `LLM_PROVIDER=stub` runs the service with no model at all: every note degrades
 to `no_op` and a valid (but directive-free) schedule is still returned. It
