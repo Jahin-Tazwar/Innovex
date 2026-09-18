@@ -57,7 +57,8 @@ jobs:
 
       - name: Verify the image actually serves /health
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          # GHCR forces lowercase; github.repository keeps the owner's capitals.
+          IMAGE=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" | tr '[:upper:]' '[:lower:]')
           docker run -d --name gridwise -p 8000:8000 -e LLM_PROVIDER=stub "$IMAGE"
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8000/health; then
@@ -74,6 +75,8 @@ jobs:
 
       - name: Image reference
         run: |
+          IMAGE=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
           echo "Pull with:"
-          echo "  docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "Digest: ${{ steps.build.outputs.digest }}"
+          echo "  docker pull ${IMAGE}:latest"
+          echo "Pin exactly:"
+          echo "  docker pull ${IMAGE}@${{ steps.build.outputs.digest }}"
