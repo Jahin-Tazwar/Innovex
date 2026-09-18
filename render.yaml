@@ -1,0 +1,30 @@
+# Render blueprint. Import the repo at https://dashboard.render.com/blueprints
+# or just create a Web Service pointed at this repo with runtime "Docker".
+#
+# sync: false means "prompt me for the value in the dashboard" -- no secret is
+# ever stored in this file.
+services:
+  - type: web
+    name: gridwise-llm
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: LLM_PROVIDER
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: LLM_TIMEOUT_SECONDS
+        value: "12"
+      - key: SOLVER_TIMEOUT_SECONDS
+        value: "10"
+      - key: DEBUG
+        value: "false"
