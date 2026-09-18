@@ -11,7 +11,7 @@ schedule that obeys every one of them.
 |---|---|
 | Health endpoint | `GET /health` → `{"status":"ok"}` |
 | Main endpoint | `POST /optimize-energy` |
-| Live base URL | <!-- TODO: paste the deployed Render URL here before submitting --> |
+| Live base URL | `https://innovex-j2n6.onrender.com` |
 | Docker image | `ghcr.io/jahin-tazwar/innovex:latest` |
 | Interactive schema | `GET /docs` |
 
