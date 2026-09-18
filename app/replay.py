@@ -143,6 +143,39 @@ def replay(
     return errors
 
 
+def verify_schedule(
+    scenario: dict,
+    directives_raw: Sequence,
+    plan: Sequence[HourPlanEntry],
+) -> tuple[bool, List[str]]:
+    """
+    Dict-in convenience wrapper around replay(), for test fixtures.
+
+    Takes a raw scenario dict and raw directive dicts (the shape the LLM/judge
+    speaks) instead of parsed models, so edge-case suites can be written as
+    plain literals.
+
+        is_valid, problems = verify_schedule(scenario, directives, plan)
+    """
+    from .guardrails import normalize  # local import keeps the module graph flat
+
+    battery = Battery.model_validate(scenario["battery"])
+    hours = sorted(
+        (HourEntry.model_validate(h) for h in scenario["hours"]),
+        key=lambda h: h.hour,
+    )
+
+    if directives_raw and isinstance(directives_raw[0], Directive):
+        directives = list(directives_raw)
+    else:
+        _, directives = normalize(
+            list(directives_raw), [""] * len(directives_raw), battery
+        )
+
+    errors = replay(plan, hours, battery, directives)
+    return not errors, errors
+
+
 def totals_from_plan(
     plan: Sequence[HourPlanEntry], hours: Sequence[HourEntry]
 ) -> tuple[float, float, float]:

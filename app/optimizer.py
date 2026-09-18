@@ -218,9 +218,29 @@ def parse_scenario(scenario_dict: dict) -> tuple[List[HourEntry], Battery]:
     return hours, battery
 
 
-def parse_directives(directives_list: list) -> List[Directive]:
-    """Helper to convert raw dictionary directives into Pydantic schema instances."""
-    return [Directive(**d) for d in directives_list]
+def parse_directives(directives_list: list, battery: Battery | None = None) -> List[Directive]:
+    """
+    Convert raw directive dicts into validated Directive objects.
+
+    Goes through the guardrails so fixtures are normalised the same way real
+    model output is. Directive(**d) does not work here: the raw dicts carry
+    `applies` and `structured_adjustment`, while Directive holds the flattened
+    fields and forbids extras.
+    """
+    from . import guardrails
+
+    if battery is None:  # permissive stand-in; only used to cap reserve values
+        battery = Battery(
+            capacity_kwh=float("inf"),
+            initial_energy_kwh=0.0,
+            minimum_energy_kwh=0.0,
+            max_charge_kwh_per_hour=0.0,
+            max_discharge_kwh_per_hour=0.0,
+        )
+    _, directives = guardrails.normalize(
+        directives_list, [""] * len(directives_list), battery
+    )
+    return directives
 
 
 def get_base_scenario() -> dict:
@@ -246,7 +266,7 @@ def run_test(name: str, scenario_raw: dict, directives_raw: list) -> None:
     print(f"\n--- Testing: {name} ---")
     try:
         hours, battery = parse_scenario(scenario_raw)
-        directives = parse_directives(directives_raw)
+        directives = parse_directives(directives_raw, battery)
 
         # 1. Run Solver
         result = solve(hours, battery, directives)

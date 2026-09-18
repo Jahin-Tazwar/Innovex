@@ -1,0 +1,79 @@
+name: Build and publish Docker image
+
+# The judge needs a pullable fallback image and nobody on the team has Docker
+# installed, so CI builds it. Every push to the default branch republishes
+# ghcr.io/<owner>/<repo>:latest plus an immutable :sha-<commit> tag.
+#
+# AFTER THE FIRST SUCCESSFUL RUN: open the repo's Packages page and set the
+# package visibility to Public, otherwise judges cannot pull it.
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify the image actually serves /health
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          docker run -d --name gridwise -p 8000:8000 -e LLM_PROVIDER=stub "$IMAGE"
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health; then
+              echo "\nhealth ok"
+              docker rm -f gridwise
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "health never came up"
+          docker logs gridwise
+          docker rm -f gridwise
+          exit 1
+
+      - name: Image reference
+        run: |
+          echo "Pull with:"
+          echo "  docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          echo "Digest: ${{ steps.build.outputs.digest }}"
